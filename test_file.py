@@ -19,6 +19,15 @@ from langgraph.graph.message import add_messages
 from langchain_groq import ChatGroq
 import base64
 import requests
+
+#==============================================LOAD API KEY TOOL==========================================================#
+
+#intergrate tools in workflow
+load_dotenv()
+os.environ["TAVILY_API_KEY"] = os.getenv("TAVILY_API_KEY")
+os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
+# os.environ["WEATHER_API_KEY"] = os.getenv("WEATHER_API_KEY")
+
 #==========================================LOAN API(OWN)=================================================================#
 
 class LoanAPIWrapper:
@@ -97,7 +106,7 @@ loan_tool = Tool(
     func=loan_tool_runnable.invoke
 )
 
-
+# weather_tool_runnable.invoke("Noida")
 
 
 #==========================================WEATHER API=============================================================#
@@ -136,7 +145,7 @@ class WeatherQueryRun(Runnable):
 
 
 # own tool ( Creation own api tool )
-weather_api_key = "60f4a2c9d19f2183eeafeee3c1060947"  # ← your real API key here
+weather_api_key = os.getenv("WEATHER_API_KEY")  # ← your real API key here
 weather_api_wrapper = WeatherAPIWrapper(api_key=weather_api_key)
 weather_tool_runnable= WeatherQueryRun(api_wrapper=weather_api_wrapper)
 # print(weather_tool_runnable.invoke("Noida"))
@@ -162,12 +171,7 @@ api_wrapper_wiki=WikipediaAPIWrapper(top_k_results=1,doc_content_chars_max=500)
 wiki=WikipediaQueryRun(api_wrapper=api_wrapper_wiki)
 #print(wiki.name)
 
-#==============================================LOAD API KEY TOOL==========================================================#
 
-#intergrate tools in workflow
-load_dotenv()
-os.environ["TAVILY_API_KEY"] = os.getenv("TAVILY_API_KEY")
-os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
 
 #==============================================TAVILY TOOL==========================================================#
 # tool 3
@@ -192,7 +196,7 @@ llm_with_tools=llm.bind_tools(tools=tools)
 class State(TypedDict):
     messages:Annotated[list[AnyMessage],add_messages]
 
-#==============================================DISPLAY TOOL==========================================================#
+#==============================================DISPLAY TOOL(TOOL CALL)==========================================================#
 
 from IPython.display import Image, display
 from langgraph.graph import StateGraph, START, END
@@ -215,7 +219,7 @@ builder.add_conditional_edges(
     tools_condition,
 )
 # builder.add_edge("tools",END)
-builder.add_edge("tools","tool_call") # one call to another
+builder.add_edge("tools","tool_call") # one call to another, for more than one sentence
 graph=builder.compile()
 
 #==============================================PRINTING THE DATA IN TEXT TOOL==========================================================#
@@ -227,15 +231,6 @@ graph=builder.compile()
 # for m in messages["messages"]:
 #     m.pretty_print()
 
-def parse_with_rasa(text: str):
-    try:
-        response = requests.post(
-            "http://localhost:5005/model/parse",
-            json={"text": text}
-        )
-        return response.json()
-    except Exception as e:
-        return {"intent": {"name": "unknown"}, "entities": [], "error": str(e)}
 
 
 #==============================================PARAMETERS/DATA OF TEXT TO SPEECH==========================================================#
@@ -243,63 +238,67 @@ def parse_with_rasa(text: str):
 # 3de86bed-c61f-4a85-a275-0e8be87cc723
 speechurl = "https://api.sarvam.ai/text-to-speech"
 headers = {
-    "api-subscription-key": "3de86bed-c61f-4a85-a275-0e8be87cc723",
+    "api-subscription-key": os.getenv("SARVAM_API_KEY"),
     "Content-Type": "application/json"
 }
-#==============PARAMETERS/DATA OF SPEECH TO TEXT===================#
+#===============================================PARAMETERS/DATA OF SPEECH TO TEXT==============================#
 header = {
-    'api-subscription-key': "3de86bed-c61f-4a85-a275-0e8be87cc723"
+    'api-subscription-key': os.getenv("SARVAM_API_KEY")
 }
 txt=""
 texturl = "https://api.sarvam.ai/speech-to-text-translate"
 
 #===============================================SPEAK TO UPLOAD YOUR AUDIO=========================================================#
-import streamlit as st
-import requests
-import base64
-from langchain.schema import HumanMessage
+st.header("Chatbot")
+# uploaded_audio = st.audio_input("Ask Your Query")
+# if uploaded_audio is not None:
+#     files = {
+#         'file': (uploaded_audio.name, uploaded_audio, 'audio/mpeg')
+#     }
+#     response = requests.post(texturl, headers=header, files=files)
+#     # st.subheader(f"Status Code: {response.status_code}")
+#     # st.text("Response:")
+#     # st.write(response.text)
+#     txt=response.json()
 
-# ---------- SESSION STATE SETUP ----------
-
-
+#=====================================================ASK=================================================#
+    # st.write(txt["transcript"])
 txt = st.text_input("Enter the information that you want to display")
-
-# if st.button("Submit") and txt:
-#     # Call your agentic graph
-#     messages = graph.invoke({"messages": [HumanMessage(content=txt)]})
-#
-#     # Display each message
-#     for i, m in enumerate(messages["messages"]):
-#         # st.markdown(f"### 🔹 Message {i + 1} ({m.type.capitalize()}):")
-#         if m.type == "tool":
-#             continue
-#         else:
-#             if len(m.content) == 0:
-#                 continue
-#             else:
-#                 st.write(m.content)
-
-if st.button("Submit") and txt:
-    rasa_result = parse_with_rasa(txt)
-    intent = rasa_result.get("intent", {}).get("name", "unknown")
-    entities = {ent["entity"]: ent["value"] for ent in rasa_result.get("entities", [])}
-
-    # You can optionally store the extracted name in session or build context
-    if "name" in entities:
-        st.session_state["user_name"] = entities["name"]
-
-    # Optionally update txt with name if missing
-    if "loan" in intent and "name" not in txt.lower() and "user_name" in st.session_state:
-        txt += f" for {st.session_state['user_name']}"
-
-    # Now pass to LangGraph agent
-    messages = graph.invoke({"messages": [HumanMessage(content=txt)]})
-
-    for m in messages["messages"]:
-        if m.type != "tool" and m.content.strip():
-            st.write(m.content)
-
-
-if st.button("Reset Conversation"):
-    st.session_state.clear()
-    st.success("🔄 Session reset.")
+if st.button("Ask"):
+    response = graph.invoke({"messages": HumanMessage(content=txt)})
+    for i, m in enumerate(response["messages"]):
+        if m.type=="tool":
+            continue
+        else:
+            if len(m.content)==0:
+                continue
+            else:
+                # st.markdown(f"### 🔹 Message: {m.type}")
+                #speak these m.content
+                # st.header(f"Length of message content: {len(m.content)}")
+                # st.write(m.content)
+                payload = {
+                    "speaker": "meera",
+                    "pitch": 0,
+                    "pace": 1,
+                    "loudness": 1,
+                    "speech_sample_rate": 22050,
+                    "enable_preprocessing": False,
+                    "text": m.content,
+                    "target_language_code": "en-IN",
+                    "model": "bulbul:v1"
+                }
+                response = requests.request("POST", speechurl, json=payload, headers=headers)
+                # Check if the request was successful
+                if response.status_code == 200 and m.type=="ai":
+                    # If successful, print the response data
+                    response_data=response.json()
+                    # Decode the Base64 string to binary
+                    base64_audio_data = response_data["audios"][0]
+                    # Decode the Base64 string to binary
+                    audio_data = base64.b64decode(base64_audio_data)
+                    # Write the decoded binary data to an MP3 file
+                    with open("outputad.mp3", "wb") as audio_file:
+                        audio_file.write(audio_data)
+                    # print("Audio file has been saved as output_audio.mp3")
+                    st.audio("outputad.mp3", format="audio/mpeg", autoplay=True)
