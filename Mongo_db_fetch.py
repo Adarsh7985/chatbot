@@ -31,7 +31,7 @@ collection = db["loaninfo"]
 # # Insert all documents
 # collection.insert_many(loan_documents)
 collection.insert_one({
-    "customerName": "Adarsh",
+    "customerName": "lucky",
     "loanAmount": 500000,
     "interestRate": 7.5,
     "durationMonths": 24

@@ -13,7 +13,7 @@ import time
 import os
 from dotenv import load_dotenv
 from typing_extensions import TypedDict
-from langchain_core.messages import AnyMessage, HumanMessage
+from langchain_core.messages import AnyMessage,HumanMessage
 from typing import Annotated
 from langgraph.graph.message import add_messages
 from langchain_groq import ChatGroq
@@ -106,7 +106,7 @@ loan_tool = Tool(
     func=loan_tool_runnable.invoke
 )
 
-
+# weather_tool_runnable.invoke("Noida")
 
 
 #==========================================WEATHER API=============================================================#
@@ -196,7 +196,7 @@ llm_with_tools=llm.bind_tools(tools=tools)
 class State(TypedDict):
     messages:Annotated[list[AnyMessage],add_messages]
 
-#==============================================DISPLAY TOOL==========================================================#
+#==============================================DISPLAY TOOL(TOOL CALL)==========================================================#
 
 from IPython.display import Image, display
 from langgraph.graph import StateGraph, START, END
@@ -219,7 +219,7 @@ builder.add_conditional_edges(
     tools_condition,
 )
 # builder.add_edge("tools",END)
-builder.add_edge("tools","tool_call") # one call to another
+builder.add_edge("tools","tool_call") # one call to another, for more than one sentence
 graph=builder.compile()
 
 #==============================================PRINTING THE DATA IN TEXT TOOL==========================================================#
@@ -235,13 +235,12 @@ graph=builder.compile()
 
 #==============================================PARAMETERS/DATA OF TEXT TO SPEECH==========================================================#
 #Now Speak something which converts your speech into the txt then pass into msg
-# 3de86bed-c61f-4a85-a275-0e8be87cc723
 speechurl = "https://api.sarvam.ai/text-to-speech"
 headers = {
     "api-subscription-key": os.getenv("SARVAM_API_KEY"),
     "Content-Type": "application/json"
 }
-#==============PARAMETERS/DATA OF SPEECH TO TEXT===================#
+#===============================================PARAMETERS/DATA OF SPEECH TO TEXT==============================#
 header = {
     'api-subscription-key': os.getenv("SARVAM_API_KEY")
 }
@@ -260,11 +259,13 @@ if uploaded_audio is not None:
     # st.text("Response:")
     # st.write(response.text)
     txt=response.json()
+    # st.write(txt['transcript'])
 
 #=====================================================ASK=================================================#
     # st.write(txt["transcript"])
 # txt = st.text_input("Enter the information that you want to display")
-    response = graph.invoke({"messages": HumanMessage(content=txt["transcript"])})
+#     if st.button("Ask"):
+    response = graph.invoke({"messages": HumanMessage(content=txt['transcript'])})
     for i, m in enumerate(response["messages"]):
         if m.type=="tool":
             continue
